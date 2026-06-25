@@ -16,17 +16,16 @@ const validate = require('../validators/validate');
 const { createUserValidator, updateUserValidator } = require('../validators/userValidators');
 
 router.use(protect);
-router.use(authorize('admin'));
 
 router
   .route('/')
-  .get(advancedResults(User), getUsers)
-  .post(createUserValidator, validate, createUser);
+  .get(authorize('admin', 'staff', 'partner'), advancedResults(User), getUsers)
+  .post(authorize('admin'), createUserValidator, validate, createUser);
 
 router
   .route('/:id')
-  .get(getUser)
-  .put(updateUserValidator, validate, updateUser)
-  .delete(deleteUser);
+  .get(authorize('admin', 'staff', 'partner'), getUser)
+  .put(authorize('admin'), createUserValidator, validate, updateUser)
+  .delete(authorize('admin'), deleteUser);
 
 module.exports = router;
