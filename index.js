@@ -35,11 +35,18 @@ app.use(helmet());
 app.use(compression());
 
 // CORS configuration
+const allowedOrigins = [
+  'capacitor://localhost',
+  'https://localhost',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
 const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
+    ? [...process.env.ALLOWED_ORIGINS.split(','), ...allowedOrigins]
     : process.env.NODE_ENV === 'production'
-    ? false
+    ? allowedOrigins
     : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
