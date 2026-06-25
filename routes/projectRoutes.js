@@ -29,12 +29,12 @@ router.route('/radius/:zipcode/:distance').get(protect, getProjectsInRadius);
 router
   .route('/')
   .get(protect, advancedResults(Project, 'availablePlots'), getProjects)
-  .post(protect, authorize('admin'), createProjectValidator, validate, createProject);
+  .post(protect, authorize('admin', 'staff'), createProjectValidator, validate, createProject);
 
 router
   .route('/:id')
   .get(protect, getProject)
-  .put(protect, authorize('admin'), updateProjectValidator, validate, updateProject)
+  .put(protect, authorize('admin', 'staff'), updateProjectValidator, validate, updateProject)
   .delete(protect, authorize('admin'), deleteProject);
 
 module.exports = router;

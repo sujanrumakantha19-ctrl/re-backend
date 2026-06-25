@@ -67,20 +67,25 @@ const seed = async () => {
 
   const facings = ['North', 'South', 'East', 'West', 'North East'];
   const plotDocs = [];
-  for (let i = 1; i <= 48; i++) {
-    plotDocs.push({
-      projectId: projects[0]._id,
-      plotNumber: i,
-      status: i <= 5 ? 'Booked' : i <= 7 ? 'Registered' : i === 8 ? 'Pending' : 'Available',
-      facing: facings[i % 5],
-      size: 200,
-      sizeUnit: 'Sq Yards',
-      type: 'Residential',
-      bookedBy: i <= 7 ? { name: `Customer ${i}`, phone: `+91 9876500${i}`, paymentStatus: i <= 3 ? 'Fully Paid' : 'Partially Paid', type: 'customer' } : undefined,
-    });
+  for (const project of projects) {
+    const isGreenValley = project.name === 'Green Valley Enclave';
+    for (let i = 1; i <= project.totalPlots; i++) {
+      plotDocs.push({
+        projectId: project._id,
+        plotNumber: i,
+        status: isGreenValley && i <= 5 ? 'Booked' :
+                isGreenValley && i <= 7 ? 'Registered' :
+                isGreenValley && i === 8 ? 'Pending' : 'Available',
+        facing: facings[i % 5],
+        size: project.plotSize || 200,
+        sizeUnit: project.plotSizeUnit || 'Sq Yards',
+        type: ['Residential', 'Commercial'].includes(project.landType) ? project.landType : 'Residential',
+        bookedBy: isGreenValley && i <= 7 ? { name: `Customer ${i}`, phone: `+91 9876500${i}`, paymentStatus: i <= 3 ? 'Fully Paid' : 'Partially Paid', type: 'customer' } : undefined,
+      });
+    }
+    console.log(`Created ${project.totalPlots} plots for ${project.name}`);
   }
   await Plot.insertMany(plotDocs);
-  console.log('Created 48 plots for Green Valley');
 
   const leadData = [
     { customerName: 'Suresh Patel', phone: '+91 98765 11111', email: 'suresh.patel@gmail.com', city: 'Hyderabad', status: 'Open', sourceType: 'Channel Partner', source: 'Channel Partner', dateAdded: '2025-05-20', dob: '1985-03-15' },
@@ -91,6 +96,21 @@ const seed = async () => {
     { customerName: 'Lakshmi Devi', phone: '+91 98765 66666', email: 'lakshmi.devi@yahoo.com', city: 'Chennai', status: 'Open', sourceType: 'Channel Partner', source: 'Channel Partner', dateAdded: '2025-06-01', dob: '1987-12-05' },
     { customerName: 'Karthik Iyer', phone: '+91 98765 77777', email: 'karthik.i@gmail.com', city: 'Bengaluru', status: 'Qualified', sourceType: 'Staff', source: 'Staff User', assignedTo: staff._id, assignedToName: 'Staff User', dateAdded: '2025-05-28', projectId: projects[1]._id, dob: '1993-04-17' },
     { customerName: 'Meena Joshi', phone: '+91 98765 88888', email: 'meena.j@outlook.com', city: 'Pune', status: 'Open', sourceType: 'Direct', source: 'Direct Intake', dateAdded: '2025-06-02', dob: '1991-08-30' },
+    
+    // New Open Leads (Unassigned, for Open Leads Pool)
+    { customerName: 'Vijay Kumar', phone: '+91 98765 99001', email: 'vijay.k@gmail.com', city: 'Hyderabad', status: 'Open', sourceType: 'Direct', source: 'Website', dateAdded: '2025-06-10', dob: '1984-05-12' },
+    { customerName: 'Anitha Sharma', phone: '+91 98765 99002', email: 'anitha.s@gmail.com', city: 'Bengaluru', status: 'Open', sourceType: 'Channel Partner', source: 'CP Realty', dateAdded: '2025-06-12', dob: '1989-10-20' },
+    { customerName: 'Rajesh Sen', phone: '+91 98765 99003', email: 'rajesh.s@yahoo.com', city: 'Kolkata', status: 'Open', sourceType: 'Direct', source: 'Walk-In', dateAdded: '2025-06-14', dob: '1982-08-15' },
+    { customerName: 'Priya Dharshini', phone: '+91 98765 99004', email: 'priya.d@outlook.com', city: 'Chennai', status: 'Open', sourceType: 'Staff', source: 'Staff User', dateAdded: '2025-06-15', dob: '1991-02-28' },
+    { customerName: 'Amit Verma', phone: '+91 98765 99005', email: 'amit.v@gmail.com', city: 'Pune', status: 'Open', sourceType: 'Direct', source: 'Social Media', dateAdded: '2025-06-18', dob: '1987-04-24' },
+    { customerName: 'Sneha Reddy', phone: '+91 98765 99006', email: 'sneha.r@gmail.com', city: 'Hyderabad', status: 'Open', sourceType: 'Channel Partner', source: 'CP Realty', dateAdded: '2025-06-20', dob: '1993-11-08' },
+    { customerName: 'Harish Rao', phone: '+91 98765 99007', email: 'harish.rao@yahoo.com', city: 'Hyderabad', status: 'Open', sourceType: 'Direct', source: 'Newspaper Ad', dateAdded: '2025-06-22', dob: '1980-06-30' },
+    { customerName: 'Divya Teja', phone: '+91 98765 99008', email: 'divya.t@gmail.com', city: 'Bengaluru', status: 'Open', sourceType: 'Direct', source: 'Website', dateAdded: '2025-06-24', dob: '1995-07-18' },
+    
+    // Additional Assigned Leads
+    { customerName: 'Sanjay Dutt', phone: '+91 98765 99009', email: 'sanjay.d@outlook.com', city: 'Mumbai', status: 'Qualified', sourceType: 'Staff', source: 'Staff User', assignedTo: staff._id, assignedToName: 'Staff User', dateAdded: '2025-06-11', projectId: projects[2]._id, dob: '1979-01-25' },
+    { customerName: 'Nisha Gupta', phone: '+91 98765 99010', email: 'nisha.g@gmail.com', city: 'Delhi', status: 'Qualified', sourceType: 'Channel Partner', source: 'CP Realty', assignedTo: staff._id, assignedToName: 'Staff User', dateAdded: '2025-06-15', projectId: projects[3]._id, dob: '1992-09-04' },
+    { customerName: 'Manoj Bajpayee', phone: '+91 98765 99011', email: 'manoj.b@gmail.com', city: 'Patna', status: 'Customer', sourceType: 'Direct', source: 'Walk-In', assignedTo: staff._id, assignedToName: 'Staff User', dateAdded: '2025-05-10', projectId: projects[0]._id, paymentStatus: 'Partially Paid', dob: '1975-04-23' }
   ];
   const createdLeads = await Lead.insertMany(leadData);
   console.log(`Created ${createdLeads.length} leads`);

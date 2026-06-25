@@ -54,10 +54,55 @@ exports.updateTask = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Task not found with id of ${req.params.id}`, 404));
   }
 
+  // Check if comments are being updated (a new comment is added)
+  const oldCommentsCount = task.comments ? task.comments.length : 0;
+  const newCommentsCount = req.body.comments ? req.body.comments.length : 0;
+  const commentAdded = newCommentsCount > oldCommentsCount;
+
   task = await Task.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
   });
+
+  // If a comment was added, send notification
+  if (commentAdded) {
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+
+    if (req.user.role === 'staff') {
+      // Notify all admins
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await Notification.create({
+          type: 'task_assigned',
+          userId: admin._id,
+          entityId: task._id.toString(),
+          entityType: 'Task',
+          message: `Staff member ${req.user.name} commented on task: "${task.title}"`,
+          actorName: req.user.name,
+          isToday: true,
+          isRead: false,
+        });
+      }
+    } else if (req.user.role === 'admin') {
+      // Notify the task's assignee if it's a staff member
+      if (task.assignee) {
+        const assigneeUser = await User.findById(task.assignee);
+        if (assigneeUser && assigneeUser.role === 'staff') {
+          await Notification.create({
+            type: 'task_assigned',
+            userId: assigneeUser._id,
+            entityId: task._id.toString(),
+            entityType: 'Task',
+            message: `Admin ${req.user.name} commented on task: "${task.title}"`,
+            actorName: req.user.name,
+            isToday: true,
+            isRead: false,
+          });
+        }
+      }
+    }
+  }
 
   res.status(200).json({
     success: true,

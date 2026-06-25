@@ -1,6 +1,9 @@
 const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const Plot = require('../models/Plot');
+const User = require('../models/User');
+const Project = require('../models/Project');
+const Notification = require('../models/Notification');
 
 // @desc    Get all plots
 // @route   GET /api/v1/plots
@@ -115,6 +118,29 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
 
   if (!plot) {
     return next(new ErrorResponse('Plot not found or already booked', 400));
+  }
+
+  // Create notification for all admins if this was requested by staff
+  if (isStaffBooking) {
+    try {
+      const project = await Project.findById(plot.projectId);
+      const projectName = project ? project.name : 'Project';
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await Notification.create({
+          type: 'booking',
+          userId: admin._id,
+          entityId: `${plot.projectId}:${plot._id}`,
+          entityType: 'Project',
+          message: `New booking request for Plot #${plot.plotNumber} in ${projectName} by ${req.user.name}`,
+          actorName: req.user.name,
+          isToday: true,
+          isRead: false
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to create booking notification:', notifErr);
+    }
   }
 
   res.status(200).json({

@@ -1,11 +1,115 @@
 const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
+const Lead = require('../models/Lead');
+
+// Helper to check and create birthday notifications for a specific admin
+const checkAndCreateBirthdayNotifications = async (adminId) => {
+  try {
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1;
+    const todayDay = today.getDate();
+    const currentYear = today.getFullYear();
+
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+
+    // 1. Staff birthdays
+    const allStaff = await User.find({
+      role: 'staff',
+      dob: { $ne: null }
+    });
+
+    const birthdayUsers = allStaff.filter(user => {
+      if (!user.dob) return false;
+      const parsed = new Date(user.dob);
+      if (!isNaN(parsed.getTime())) {
+        return (parsed.getMonth() + 1) === todayMonth && parsed.getDate() === todayDay;
+      }
+      return false;
+    });
+
+    for (const user of birthdayUsers) {
+      const existing = await Notification.findOne({
+        type: 'birthday',
+        userId: adminId,
+        entityId: user._id.toString(),
+        entityType: 'User',
+        createdAt: { $gte: startOfYear, $lte: endOfYear }
+      });
+
+      if (!existing) {
+        await Notification.create({
+          type: 'birthday',
+          userId: adminId,
+          entityId: user._id.toString(),
+          entityType: 'User',
+          message: `Today is ${user.name}'s (Staff) Birthday!`,
+          actorName: user.name,
+          isToday: true,
+          isRead: false
+        });
+      }
+    }
+
+    // 2. Customer birthdays
+    const allCustomers = await Lead.find({
+      status: 'Customer',
+      dob: { $ne: null }
+    });
+
+    const birthdayCustomers = allCustomers.filter(lead => {
+      if (!lead.dob) return false;
+      // Try string parsing (YYYY-MM-DD)
+      const parts = lead.dob.split('-');
+      if (parts.length === 3) {
+        const m = parseInt(parts[1], 10);
+        const d = parseInt(parts[2], 10);
+        if (m === todayMonth && d === todayDay) return true;
+      }
+      // Fallback to standard Date parsing
+      const parsed = new Date(lead.dob);
+      if (!isNaN(parsed.getTime())) {
+        return (parsed.getMonth() + 1) === todayMonth && parsed.getDate() === todayDay;
+      }
+      return false;
+    });
+
+    for (const lead of birthdayCustomers) {
+      const existing = await Notification.findOne({
+        type: 'birthday',
+        userId: adminId,
+        entityId: lead._id.toString(),
+        entityType: 'Lead',
+        createdAt: { $gte: startOfYear, $lte: endOfYear }
+      });
+
+      if (!existing) {
+        await Notification.create({
+          type: 'birthday',
+          userId: adminId,
+          entityId: lead._id.toString(),
+          entityType: 'Lead',
+          message: `Today is ${lead.customerName}'s (Customer) Birthday!`,
+          actorName: lead.customerName,
+          isToday: true,
+          isRead: false
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error in checkAndCreateBirthdayNotifications:', err);
+  }
+};
 
 // @desc    Get all notifications
 // @route   GET /api/v1/notifications
 // @access  Public
 exports.getNotifications = asyncHandler(async (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    await checkAndCreateBirthdayNotifications(req.user._id);
+  }
   res.status(200).json(res.advancedResults);
 });
 
@@ -83,6 +187,10 @@ exports.deleteNotification = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/notifications/unread
 // @access  Public
 exports.getUnreadNotifications = asyncHandler(async (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    await checkAndCreateBirthdayNotifications(req.user._id);
+  }
+
   const page = parseInt(req.query.page, 10) || 1;
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
   const skip = (page - 1) * limit;
