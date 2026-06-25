@@ -1,0 +1,43 @@
+const express = require('express');
+const router = express.Router({ mergeParams: true });
+
+const {
+  getPlots,
+  getPlot,
+  createPlot,
+  updatePlot,
+  deletePlot,
+  getPlotsByProject,
+  getPlotsByStatus,
+  getPlotPendingApproval,
+  bookPlot,
+  approveBooking,
+  rejectBooking,
+  getPendingApprovals,
+} = require('../controllers/plotController');
+
+const { protect, authorize } = require('../middleware/auth');
+const advancedResults = require('../middleware/advancedResults');
+const Plot = require('../models/Plot');
+
+// Specific routes BEFORE parameterized routes
+router.route('/pending-approvals').get(protect, authorize('admin'), getPendingApprovals);
+router.route('/status/:status').get(protect, getPlotsByStatus);
+router.route('/project/:projectId').get(protect, getPlotsByProject);
+router.route('/:id/pending-approval').get(protect, getPlotPendingApproval);
+router.route('/:id/book').put(protect, bookPlot);
+router.route('/:id/approve').put(protect, authorize('admin'), approveBooking);
+router.route('/:id/reject').put(protect, authorize('admin'), rejectBooking);
+
+router
+  .route('/')
+  .get(protect, advancedResults(Plot, { path: 'projectId', select: 'name location status' }), getPlots)
+  .post(protect, authorize('admin', 'staff'), createPlot);
+
+router
+  .route('/:id')
+  .get(protect, getPlot)
+  .put(protect, authorize('admin'), updatePlot)
+  .delete(protect, authorize('admin'), deletePlot);
+
+module.exports = router;

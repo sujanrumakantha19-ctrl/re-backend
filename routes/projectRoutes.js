@@ -1,0 +1,40 @@
+const express = require('express');
+const router = express.Router();
+
+const {
+  getProjects,
+  getProject,
+  createProject,
+  updateProject,
+  deleteProject,
+  getProjectsInRadius,
+  getProjectLocations,
+  syncProjectPlots,
+} = require('../controllers/projectController');
+
+const { protect, authorize } = require('../middleware/auth');
+const advancedResults = require('../middleware/advancedResults');
+const Project = require('../models/Project');
+const validate = require('../validators/validate');
+const {
+  createProjectValidator,
+  updateProjectValidator,
+} = require('../validators/projectValidators');
+
+// Specific routes BEFORE parameterized routes
+router.route('/locations').get(protect, getProjectLocations);
+router.route('/sync-plots').post(protect, authorize('admin'), syncProjectPlots);
+router.route('/radius/:zipcode/:distance').get(protect, getProjectsInRadius);
+
+router
+  .route('/')
+  .get(protect, advancedResults(Project, 'availablePlots'), getProjects)
+  .post(protect, authorize('admin'), createProjectValidator, validate, createProject);
+
+router
+  .route('/:id')
+  .get(protect, getProject)
+  .put(protect, authorize('admin'), updateProjectValidator, validate, updateProject)
+  .delete(protect, authorize('admin'), deleteProject);
+
+module.exports = router;
