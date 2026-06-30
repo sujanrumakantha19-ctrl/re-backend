@@ -67,6 +67,14 @@ const LeadSchema = new mongoose.Schema(
       type: String,
       enum: ['Not Paid', 'Partially Paid', 'Fully Paid'],
     },
+    paymentMethod: {
+      type: String,
+      enum: ['CASH', 'LOAN'],
+      default: 'CASH',
+    },
+    bank: {
+      type: String,
+    },
     dob: {
       type: String,
     },
