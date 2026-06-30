@@ -5,7 +5,7 @@ const swaggerSetup = (app) => {
   const options = {
     explorer: true,
     customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'PropCRM API Documentation',
+    customSiteTitle: 'CRM API Documentation',
   };
 
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, options));

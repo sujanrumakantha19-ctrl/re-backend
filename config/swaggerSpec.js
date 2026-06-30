@@ -1,10 +1,10 @@
 const swaggerSpec = {
   openapi: '3.0.0',
   info: {
-    title: 'PropCRM API',
+    title: 'CRM API',
     description: 'Real Estate CRM Backend API — manages projects, plots, leads, tasks, attendance, channel partners, groups, activity logs, notifications, and user authentication.',
     version: '1.0.0',
-    contact: { name: 'PropCRM Support' },
+    contact: { name: 'CRM Support' },
   },
   servers: [
     { url: 'http://localhost:5000', description: 'Development server' },
@@ -26,7 +26,7 @@ const swaggerSpec = {
           initials: { type: 'string', example: 'PS', maxLength: 2 },
           role: { type: 'string', enum: ['admin', 'staff', 'partner'] },
           designation: { type: 'string', example: 'Sales Executive' },
-          email: { type: 'string', format: 'email', example: 'priya@propcrm.com' },
+          email: { type: 'string', format: 'email', example: 'priya@crm.com' },
           phone: { type: 'string', example: '+91 98765 43211' },
           avatarBg: { type: 'string', example: 'bg-blue-500' },
           groupId: { type: 'string', nullable: true },
