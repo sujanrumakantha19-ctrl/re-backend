@@ -100,6 +100,12 @@ const PlotSchema = new mongoose.Schema(
         type: String,
       },
     },
+    expectedRegistrationDate: {
+      type: String,
+    },
+    registrationDate: {
+      type: String,
+    },
   },
   {
     timestamps: true,

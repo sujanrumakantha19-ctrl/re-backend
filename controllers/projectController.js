@@ -101,24 +101,6 @@ exports.deleteProject = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get projects within a radius
-// @route   GET /api/v1/projects/radius/:zipcode/:distance
-// @access  Private
-exports.getProjectsInRadius = asyncHandler(async (req, res, next) => {
-  const page = parseInt(req.query.page, 10) || 1;
-  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
-  const skip = (page - 1) * limit;
-  const total = await Project.countDocuments();
-  const projects = await Project.find().skip(skip).limit(limit);
-
-  res.status(200).json({
-    success: true,
-    count: projects.length,
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-    data: projects,
-  });
-});
-
 // @desc    Get all unique project locations
 // @route   GET /api/v1/projects/locations
 // @access  Public

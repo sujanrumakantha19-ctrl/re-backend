@@ -133,8 +133,7 @@ exports.getNotification = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/notifications
 // @access  Private
 exports.createNotification = asyncHandler(async (req, res, next) => {
-  // Add user id to req.body
-  req.body.user = req.user.id;
+  req.body.userId = req.user.id;
 
   const notification = await Notification.create(req.body);
 

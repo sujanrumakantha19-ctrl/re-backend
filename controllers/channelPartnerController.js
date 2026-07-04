@@ -41,6 +41,7 @@ exports.createChannelPartner = asyncHandler(async (req, res, next) => {
     initials: req.body.initials,
     avatarBg: req.body.avatarBg,
     notes: req.body.notes,
+    dob: req.body.dob,
   };
 
   Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);

@@ -32,6 +32,17 @@ const AttendanceSchema = new mongoose.Schema(
     role: {
       type: String,
     },
+    activityType: {
+      type: String,
+      enum: ['On Duty', 'Projects', 'Bank', 'Outside Work', 'Office'],
+    },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+    },
+    projectName: {
+      type: String,
+    },
   },
   {
     timestamps: true,

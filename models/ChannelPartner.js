@@ -54,6 +54,9 @@ const ChannelPartnerSchema = new mongoose.Schema(
     notes: {
       type: String,
     },
+    dob: {
+      type: String,
+    },
   },
   {
     timestamps: true,

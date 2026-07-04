@@ -99,6 +99,7 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
           paymentStatus: req.body.paymentStatus || 'Not Paid',
           notes: req.body.notes || '',
         },
+        expectedRegistrationDate: req.body.expectedRegistrationDate || '',
       }
     : {
         status: 'Booked',
@@ -108,6 +109,7 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
           paymentStatus: req.body.paymentStatus || 'Not Paid',
           type: 'customer',
         },
+        expectedRegistrationDate: req.body.expectedRegistrationDate || '',
       };
 
   const plot = await Plot.findOneAndUpdate(
@@ -260,13 +262,22 @@ exports.getPlotsByStatus = asyncHandler(async (req, res, next) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
   const skip = (page - 1) * limit;
-  const query = { status: req.params.status };
+
+  let query = { status: req.params.status };
+
+  if (req.query.hasExpectedDate === 'true') {
+    query.expectedRegistrationDate = { $exists: true, $ne: '' };
+  }
+
   const total = await Plot.countDocuments(query);
-  const plots = await Plot.find(query).skip(skip).limit(limit).sort('plotNumber');
+  const plots = await Plot.find(query)
+    .populate({ path: 'projectId', select: 'name location status' })
+    .skip(skip).limit(limit).sort('-createdAt');
 
   res.status(200).json({
     success: true,
     count: plots.length,
+    total,
     pagination: {
       page,
       limit,

@@ -23,7 +23,7 @@ router.route('/:id/read').put(protect, markAsRead);
 
 router
   .route('/')
-  .get(protect, advancedResults(Notification), getNotifications)
+  .get(protect, (req, res, next) => { req.query.userId = req.user.id; next(); }, advancedResults(Notification), getNotifications)
   .post(protect, createNotification);
 
 router

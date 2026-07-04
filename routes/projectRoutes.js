@@ -7,7 +7,6 @@ const {
   createProject,
   updateProject,
   deleteProject,
-  getProjectsInRadius,
   getProjectLocations,
   syncProjectPlots,
 } = require('../controllers/projectController');
@@ -24,11 +23,10 @@ const {
 // Specific routes BEFORE parameterized routes
 router.route('/locations').get(protect, getProjectLocations);
 router.route('/sync-plots').post(protect, authorize('admin'), syncProjectPlots);
-router.route('/radius/:zipcode/:distance').get(protect, getProjectsInRadius);
 
 router
   .route('/')
-  .get(protect, advancedResults(Project, 'availablePlots'), getProjects)
+  .get(protect, advancedResults(Project, 'availablePlots', ['name', 'location', 'surveyNumber']), getProjects)
   .post(protect, authorize('admin', 'staff'), createProjectValidator, validate, createProject);
 
 router

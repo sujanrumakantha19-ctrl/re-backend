@@ -86,6 +86,7 @@ const advancedResults = (model, populate, searchFields = []) => asyncHandler(asy
   res.advancedResults = {
     success: true,
     count: results.length,
+    total,
     pagination,
     data: results,
   };

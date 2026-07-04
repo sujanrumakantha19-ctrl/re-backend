@@ -75,6 +75,12 @@ const LeadSchema = new mongoose.Schema(
     bank: {
       type: String,
     },
+    bankFollowerName: {
+      type: String,
+    },
+    bankFollowerPhone: {
+      type: String,
+    },
     dob: {
       type: String,
     },
