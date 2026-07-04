@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 exports.createProjectValidator = [
   body('name').trim().notEmpty().withMessage('Project name is required'),
   body('location').trim().notEmpty().withMessage('Location is required'),
-  body('type').trim().notEmpty().withMessage('Type is required'),
+  body('category').trim().notEmpty().withMessage('Category is required'),
 ];
 
 exports.updateProjectValidator = [
