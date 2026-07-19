@@ -5,21 +5,23 @@ const crypto = require('crypto');
 
 // @desc    Register user
 // @route   POST /api/v1/auth/register
-// @access  Public
+// @access  Public (defaults to 'partner' role — admin registration must go through POST /api/v1/users)
 exports.register = asyncHandler(async (req, res, next) => {
   const {
     name,
     initials,
-    role,
     designation,
     email,
     phone,
     avatarBg,
     groupId,
     dob,
-    isActive,
     password,
   } = req.body;
+
+  // Security: Force role to 'partner' for public registration.
+  // Admin/staff accounts must be created by an existing admin via POST /api/v1/users.
+  const role = 'partner';
 
   // Create user
   const user = await User.create({
@@ -32,7 +34,7 @@ exports.register = asyncHandler(async (req, res, next) => {
     avatarBg,
     groupId,
     dob,
-    isActive,
+    isActive: true,
     password,
   });
 
@@ -218,7 +220,7 @@ exports.updateProfile = asyncHandler(async (req, res, next) => {
   if (avatarBg) fieldsToUpdate.avatarBg = avatarBg;
 
   const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true,
   });
 

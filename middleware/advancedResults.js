@@ -20,7 +20,13 @@ const advancedResults = (model, populate, searchFields = []) => asyncHandler(asy
   // Create operators ($gt, $gte, etc.)
   queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, (match) => `$${match}`);
 
-  let parsedQuery = JSON.parse(queryStr);
+  let parsedQuery;
+  try {
+    parsedQuery = JSON.parse(queryStr);
+  } catch (e) {
+    // If JSON parsing fails, return empty query instead of crashing
+    parsedQuery = {};
+  }
 
   // Sanitize against NoSQL injection
   parsedQuery = mongoSanitize(parsedQuery);

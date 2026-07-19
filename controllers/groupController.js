@@ -47,8 +47,16 @@ exports.updateGroup = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Group not found with id of ${req.params.id}`, 404));
   }
 
-  group = await Group.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  const allowedFields = {
+    name: req.body.name,
+    description: req.body.description,
+    members: req.body.members,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  group = await Group.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 

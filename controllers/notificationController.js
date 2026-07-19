@@ -153,8 +153,15 @@ exports.updateNotification = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Notification not found with id of ${req.params.id}`, 404));
   }
 
-  notification = await Notification.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  // Only allow updating isRead — prevent userId/type/message tampering
+  const allowedFields = {
+    isRead: req.body.isRead,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  notification = await Notification.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 

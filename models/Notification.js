@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const fcm = require('../utils/fcm');
 
 const NotificationSchema = new mongoose.Schema(
   {
@@ -44,28 +45,30 @@ const NotificationSchema = new mongoose.Schema(
 NotificationSchema.index({ userId: 1, isRead: 1 });
 NotificationSchema.index({ type: 1 });
 
+// Exported for testing
+const getTitleForType = (type) => {
+  switch (type) {
+    case 'birthday':
+      return '🎂 Birthday Alert!';
+    case 'lead_status':
+      return '📋 Lead Status Updated';
+    case 'new_lead':
+      return '🆕 New Lead Assigned';
+    case 'task_assigned':
+      return '📝 New Task Assigned';
+    case 'attendance':
+      return '⏰ Attendance Update';
+    case 'booking':
+      return '🏡 Plot Booking Request';
+    default:
+      return '🔔 New Notification';
+  }
+};
+
 NotificationSchema.post('save', async function (doc) {
   try {
-    if (!doc.userId) return;
-    const fcm = require('../utils/fcm');
-    const getTitleForType = (type) => {
-      switch (type) {
-        case 'birthday':
-          return '🎂 Birthday Alert!';
-        case 'lead_status':
-          return '📋 Lead Status Updated';
-        case 'new_lead':
-          return '🆕 New Lead Assigned';
-        case 'task_assigned':
-          return '📝 New Task Assigned';
-        case 'attendance':
-          return '⏰ Attendance Update';
-        case 'booking':
-          return '🏡 Plot Booking Request';
-        default:
-          return '🔔 New Notification';
-      }
-    };
+    // Only send push on new notifications, not on updates (e.g., markAsRead)
+    if (!doc.isNew || !doc.userId) return;
     
     await fcm.sendPushToUser(doc.userId.toString(), {
       title: getTitleForType(doc.type),
@@ -82,4 +85,9 @@ NotificationSchema.post('save', async function (doc) {
   }
 });
 
-module.exports = mongoose.model('Notification', NotificationSchema);
+const Notification = mongoose.model('Notification', NotificationSchema);
+
+// Export helper for testing
+Notification.getTitleForType = getTitleForType;
+
+module.exports = Notification;

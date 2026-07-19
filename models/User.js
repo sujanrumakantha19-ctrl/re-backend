@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const Counter = require('./Counter');
 
 const UserSchema = new mongoose.Schema(
   {
@@ -79,19 +80,26 @@ UserSchema.index({ role: 1 });
 UserSchema.index({ isActive: 1 });
 UserSchema.index({ groupId: 1 });
 
-// Auto-generate employeeId
+// Auto-generate employeeId (atomic to prevent race conditions)
 UserSchema.pre('save', async function () {
   if (!this.employeeId) {
     const prefix = this.role === 'partner' ? 'CP' : 'EMP';
-    const count = await mongoose.model('User').countDocuments();
-    this.employeeId = `${prefix}${String(count + 1).padStart(3, '0')}`;
+    // Use atomic counter to prevent race conditions in concurrent registrations
+    const Counter = mongoose.model('Counter');
+    const counterName = `employeeId_${prefix}`;
+    const counter = await Counter.findOneAndUpdate(
+      { name: counterName },
+      { $inc: { seq: 1 } },
+      { returnDocument: 'after', upsert: true }
+    );
+    this.employeeId = `${prefix}${String(counter.seq).padStart(3, '0')}`;
   }
 });
 
 // Encrypt password using bcrypt
-UserSchema.pre('save', async function (next) {
+UserSchema.pre('save', async function () {
   if (!this.isModified('password')) {
-    return next();
+    return;
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

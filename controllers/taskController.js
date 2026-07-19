@@ -33,9 +33,6 @@ exports.getTask = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/tasks
 // @access  Private
 exports.createTask = asyncHandler(async (req, res, next) => {
-  // Add user id to req.body
-  req.body.user = req.user.id;
-
   const task = await Task.create(req.body);
 
   res.status(201).json({
@@ -59,8 +56,23 @@ exports.updateTask = asyncHandler(async (req, res, next) => {
   const newCommentsCount = req.body.comments ? req.body.comments.length : 0;
   const commentAdded = newCommentsCount > oldCommentsCount;
 
-  task = await Task.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  const allowedFields = {
+    title: req.body.title,
+    description: req.body.description,
+    status: req.body.status,
+    priority: req.body.priority,
+    assignee: req.body.assignee,
+    assigneeInitials: req.body.assigneeInitials,
+    dueDate: req.body.dueDate,
+    dueTime: req.body.dueTime,
+    project: req.body.project,
+    comments: req.body.comments,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  task = await Task.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 

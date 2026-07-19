@@ -72,7 +72,7 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
   Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
 
   const user = await User.findByIdAndUpdate(req.params.id, allowedFields, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true,
   });
 

@@ -25,7 +25,7 @@ router
 router
   .route('/:id')
   .get(authorize('admin', 'staff', 'partner'), getUser)
-  .put(authorize('admin'), createUserValidator, validate, updateUser)
+  .put(authorize('admin'), updateUserValidator, validate, updateUser)
   .delete(authorize('admin'), deleteUser);
 
 module.exports = router;

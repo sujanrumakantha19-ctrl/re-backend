@@ -1,8 +1,8 @@
 const { body } = require('express-validator');
 
 exports.createLeadValidator = [
-  body('name').trim().notEmpty().withMessage('Lead name is required'),
+  body('customerName').trim().notEmpty().withMessage('Customer name is required'),
   body('phone').trim().notEmpty().withMessage('Phone number is required'),
-  body('project').trim().notEmpty().withMessage('Project is required'),
+  body('email').trim().isEmail().withMessage('Valid email is required'),
   body('source').trim().notEmpty().withMessage('Source is required'),
 ];

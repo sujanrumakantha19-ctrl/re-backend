@@ -64,8 +64,26 @@ exports.updateChannelPartner = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Channel partner not found with id of ${req.params.id}`, 404));
   }
 
-  channelPartner = await ChannelPartner.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  const allowedFields = {
+    userId: req.body.userId,
+    name: req.body.name,
+    companyName: req.body.companyName,
+    phone: req.body.phone,
+    email: req.body.email,
+    city: req.body.city,
+    reraId: req.body.reraId,
+    totalLeads: req.body.totalLeads,
+    isActive: req.body.isActive,
+    initials: req.body.initials,
+    avatarBg: req.body.avatarBg,
+    notes: req.body.notes,
+    dob: req.body.dob,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  channelPartner = await ChannelPartner.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 

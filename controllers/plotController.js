@@ -71,8 +71,25 @@ exports.updatePlot = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Plot not found with id of ${req.params.id}`, 404));
   }
 
-  plot = await Plot.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  const allowedFields = {
+    plotNumber: req.body.plotNumber,
+    status: req.body.status,
+    facing: req.body.facing,
+    size: req.body.size,
+    sizeUnit: req.body.sizeUnit,
+    type: req.body.type,
+    price: req.body.price,
+    timeline: req.body.timeline,
+    bookedBy: req.body.bookedBy,
+    pendingApproval: req.body.pendingApproval,
+    expectedRegistrationDate: req.body.expectedRegistrationDate,
+    registrationDate: req.body.registrationDate,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  plot = await Plot.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 
@@ -115,7 +132,7 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
   const plot = await Plot.findOneAndUpdate(
     { _id: req.params.id, status: 'Available' },
     update,
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   );
 
   if (!plot) {

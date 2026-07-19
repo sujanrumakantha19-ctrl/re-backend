@@ -59,9 +59,12 @@ exports.createLead = asyncHandler(async (req, res, next) => {
     projectId: req.body.projectId,
     plotId: req.body.plotId,
     paymentStatus: req.body.paymentStatus,
+    paymentMethod: req.body.paymentMethod,
+    bank: req.body.bank,
+    bankFollowerName: req.body.bankFollowerName,
+    bankFollowerPhone: req.body.bankFollowerPhone,
     dob: req.body.dob,
     followUps: req.body.followUps,
-    user: req.user.id,
   };
 
   Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
@@ -84,8 +87,36 @@ exports.updateLead = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Lead not found with id of ${req.params.id}`, 404));
   }
 
-  lead = await Lead.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  const allowedFields = {
+    customerName: req.body.customerName,
+    phone: req.body.phone,
+    email: req.body.email,
+    city: req.body.city,
+    budgetMin: req.body.budgetMin,
+    budgetMax: req.body.budgetMax,
+    propertyInterest: req.body.propertyInterest,
+    notes: req.body.notes,
+    source: req.body.source,
+    sourceType: req.body.sourceType,
+    assignedTo: req.body.assignedTo,
+    assignedToName: req.body.assignedToName,
+    status: req.body.status,
+    dateAdded: req.body.dateAdded,
+    projectId: req.body.projectId,
+    plotId: req.body.plotId,
+    paymentStatus: req.body.paymentStatus,
+    paymentMethod: req.body.paymentMethod,
+    bank: req.body.bank,
+    bankFollowerName: req.body.bankFollowerName,
+    bankFollowerPhone: req.body.bankFollowerPhone,
+    dob: req.body.dob,
+    followUps: req.body.followUps,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  lead = await Lead.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 

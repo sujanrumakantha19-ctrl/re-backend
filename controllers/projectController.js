@@ -30,9 +30,6 @@ exports.getProject = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/projects
 // @access  Private/Admin
 exports.createProject = asyncHandler(async (req, res, next) => {
-  // Add user id to req.body
-  req.body.user = req.user.id;
-
   const project = await Project.create(req.body);
 
   if (project.totalPlots > 0) {
@@ -66,10 +63,37 @@ exports.updateProject = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Project not found with id of ${req.params.id}`, 404));
   }
 
-  // Make sure user is project owner
-  // In a real app, you would check if the user owns the project or is admin
-  project = await Project.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  const allowedFields = {
+    name: req.body.name,
+    location: req.body.location,
+    description: req.body.description,
+    status: req.body.status,
+    totalLandArea: req.body.totalLandArea,
+    landAreaUnit: req.body.landAreaUnit,
+    surveyNumber: req.body.surveyNumber,
+    village: req.body.village,
+    mandal: req.body.mandal,
+    district: req.body.district,
+    landType: req.body.landType,
+    totalPlots: req.body.totalPlots,
+    plotSize: req.body.plotSize,
+    plotSizeUnit: req.body.plotSizeUnit,
+    roadFacingPlots: req.body.roadFacingPlots,
+    cornerPlots: req.body.cornerPlots,
+    pricePerSqUnit: req.body.pricePerSqUnit,
+    images: req.body.images,
+    latitude: req.body.latitude,
+    longitude: req.body.longitude,
+    category: req.body.category,
+    isEnabled: req.body.isEnabled,
+    plotImages: req.body.plotImages,
+    owner: req.body.owner,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  project = await Project.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 

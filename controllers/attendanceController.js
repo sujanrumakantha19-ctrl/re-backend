@@ -33,9 +33,6 @@ exports.getAttendance = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/attendance
 // @access  Private
 exports.createAttendance = asyncHandler(async (req, res, next) => {
-  // Add user id to req.body
-  req.body.user = req.user.id;
-
   const attendance = await Attendance.create(req.body);
 
   res.status(201).json({
@@ -54,8 +51,24 @@ exports.updateAttendance = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Attendance not found with id of ${req.params.id}`, 404));
   }
 
-  attendance = await Attendance.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
+  const allowedFields = {
+    staffId: req.body.staffId,
+    staffName: req.body.staffName,
+    date: req.body.date,
+    checkIn: req.body.checkIn,
+    checkOut: req.body.checkOut,
+    duration: req.body.duration,
+    status: req.body.status,
+    role: req.body.role,
+    activityType: req.body.activityType,
+    projectId: req.body.projectId,
+    projectName: req.body.projectName,
+  };
+
+  Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
+
+  attendance = await Attendance.findByIdAndUpdate(req.params.id, allowedFields, {
+    returnDocument: 'after',
     runValidators: true,
   });
 
