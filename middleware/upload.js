@@ -61,8 +61,20 @@ const createDiskStorage = (subfolder) =>
     },
   });
 
-// Placeholder for future S3 storage:
-// const createS3Storage = (subfolder) => multerS3({ ... })
+const isS3Configured = () => {
+  return !!(
+    process.env.AWS_ACCESS_KEY_ID &&
+    process.env.AWS_SECRET_ACCESS_KEY &&
+    process.env.AWS_S3_BUCKET_NAME
+  );
+};
+
+const getStorageForCategory = (subfolder) => {
+  if (isS3Configured()) {
+    return multer.memoryStorage();
+  }
+  return createDiskStorage(subfolder);
+};
 
 // ─── File Filter ────────────────────────────────────────────────────────
 
@@ -86,25 +98,25 @@ const documentFilter = (req, file, cb) => {
 // ─── Pre-configured Uploaders ───────────────────────────────────────────
 
 const uploadProjectImages = multer({
-  storage: createDiskStorage('projects'),
+  storage: getStorageForCategory('projects'),
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: documentFilter,
 });
 
 const uploadPlotImages = multer({
-  storage: createDiskStorage('plots'),
+  storage: getStorageForCategory('plots'),
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: documentFilter,
 });
 
 const uploadKycDocuments = multer({
-  storage: createDiskStorage('kyc'),
+  storage: getStorageForCategory('kyc'),
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: documentFilter,
 });
 
 const uploadGeneral = multer({
-  storage: createDiskStorage('general'),
+  storage: getStorageForCategory('general'),
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: documentFilter,
 });

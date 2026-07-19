@@ -125,6 +125,8 @@ app.use('/api/v1/notifications', require('./routes/notificationRoutes'));
 app.use('/api/v1/groups', require('./routes/groupRoutes'));
 app.use('/api/v1/activity-logs', require('./routes/activityLogRoutes'));
 app.use('/api/v1/uploads', require('./routes/uploadRoutes'));
+app.use('/api/v1/whatsapp', require('./routes/whatsappRoutes'));
+
 
 // Serve uploaded files statically (with auth)
 const path = require('path');

@@ -4,6 +4,7 @@ const {
   uploadFiles,
   getFiles,
   deleteFile,
+  getKycPresignedUrl,
 } = require('../controllers/uploadController');
 const { protect } = require('../middleware/auth');
 const {
@@ -45,6 +46,9 @@ router.post('/:category', (req, res, next) => {
     next();
   });
 }, uploadFiles);
+
+// Secure KYC Redirect route
+router.get('/kyc/:filename', getKycPresignedUrl);
 
 // List files by category
 router.get('/:category', getFiles);

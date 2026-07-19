@@ -248,3 +248,57 @@ exports.changePassword = asyncHandler(async (req, res, next) => {
   const token = user.getSignedJwtToken();
   res.status(200).json({ success: true, token, message: 'Password updated successfully' });
 });
+
+// @desc    Add / update user push token
+// @route   PUT /api/v1/auth/push-token
+// @access  Private
+exports.addPushToken = asyncHandler(async (req, res, next) => {
+  const { token, platform } = req.body;
+
+  if (!token) {
+    return next(new ErrorResponse('Please provide a push token', 400));
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Check if token already exists in user's pushTokens
+  const tokenExists = user.pushTokens.some(t => t.token === token);
+  if (!tokenExists) {
+    user.pushTokens.push({ token, platform: platform || 'android' });
+    await user.save();
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Push token registered successfully',
+    data: user.pushTokens
+  });
+});
+
+// @desc    Remove user push token
+// @route   DELETE /api/v1/auth/push-token
+// @access  Private
+exports.removePushToken = asyncHandler(async (req, res, next) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return next(new ErrorResponse('Please provide a push token to remove', 400));
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  user.pushTokens = user.pushTokens.filter(t => t.token !== token);
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Push token removed successfully',
+    data: user.pushTokens
+  });
+});

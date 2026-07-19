@@ -10,6 +10,8 @@ const {
   resetPassword,
   updateProfile,
   changePassword,
+  addPushToken,
+  removePushToken,
 } = require('../controllers/authController');
 
 const { protect } = require('../middleware/auth');
@@ -51,5 +53,9 @@ router.route('/update-profile').put(protect, updateProfile);
 router.route('/change-password').put(protect, updatePasswordValidator, validate, changePassword);
 router.route('/forgot-password').post(forgotPasswordLimiter, forgotPasswordValidator, validate, forgotPassword);
 router.route('/reset-password').post(resetPasswordValidator, validate, resetPassword);
+
+router.route('/push-token')
+  .put(protect, addPushToken)
+  .delete(protect, removePushToken);
 
 module.exports = router;

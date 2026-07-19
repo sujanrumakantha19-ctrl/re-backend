@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const logger = require('../utils/logger');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 // Magic byte signatures for file validation
 const MAGIC_BYTES = [
@@ -17,14 +19,29 @@ const MAGIC_BYTES = [
 const WEBP_RIFF = [0x52, 0x49, 0x46, 0x46];
 const WEBP_WEBP = [0x57, 0x45, 0x42, 0x50];
 
-function isValidFileType(filepath) {
-  const fd = fsSync.openSync(filepath, 'r');
-  const buffer = Buffer.alloc(12);
-  fsSync.readSync(fd, buffer, 0, 12, 0);
-  fsSync.closeSync(fd);
+function isValidFileType(source) {
+  let buffer;
+
+  if (Buffer.isBuffer(source)) {
+    buffer = source;
+  } else if (typeof source === 'string') {
+    // If it's a file path, read synchronously
+    try {
+      const fd = fsSync.openSync(source, 'r');
+      buffer = Buffer.alloc(12);
+      fsSync.readSync(fd, buffer, 0, 12, 0);
+      fsSync.closeSync(fd);
+    } catch (err) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  if (!buffer || buffer.length < 12) return false;
 
   // Check standard signatures
-  for (const { sig, name } of MAGIC_BYTES) {
+  for (const { sig } of MAGIC_BYTES) {
     if (buffer.slice(0, sig.length).equals(Buffer.from(sig))) return true;
   }
 
@@ -35,6 +52,25 @@ function isValidFileType(filepath) {
   ) return true;
 
   return false;
+}
+
+const isS3Configured = () => {
+  return !!(
+    process.env.AWS_ACCESS_KEY_ID &&
+    process.env.AWS_SECRET_ACCESS_KEY &&
+    process.env.AWS_S3_BUCKET_NAME
+  );
+};
+
+let s3Client = null;
+if (isS3Configured()) {
+  s3Client = new S3Client({
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+    region: process.env.AWS_REGION || 'ap-south-1',
+  });
 }
 
 // @desc    Upload files
@@ -52,27 +88,75 @@ exports.uploadFiles = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Invalid category. Must be one of: ${validCategories.join(', ')}`, 400));
   }
 
-  // Validate magic bytes for each uploaded file
+  const useS3 = isS3Configured() && s3Client;
+  const files = [];
+
   for (const file of req.files) {
-    const filepath = path.join(__dirname, '..', 'uploads', category, file.filename);
-    if (!isValidFileType(filepath)) {
-      // Clean up the invalid file
-      try { await fs.unlink(filepath); } catch { /* ignore cleanup error */ }
+    // Determine validation source (buffer for memory storage, path for disk storage)
+    const source = file.buffer ? file.buffer : path.join(__dirname, '..', 'uploads', category, file.filename);
+    
+    if (!isValidFileType(source)) {
+      // Clean up local file if using disk storage
+      if (!file.buffer) {
+        try { await fs.unlink(source); } catch {}
+      }
       return next(new ErrorResponse(`Invalid file content: ${file.originalname} does not match declared type`, 400));
     }
-  }
 
-  const files = req.files.map((file) => ({
-    id: `${Date.now()}-${Math.round(Math.random() * 1e9)}`,
-    filename: file.filename,
-    originalName: file.originalname,
-    mimetype: file.mimetype,
-    size: file.size,
-    category,
-    path: `/uploads/${category}/${file.filename}`,
-    uploadedAt: new Date().toISOString(),
-    uploadedBy: req.user.id,
-  }));
+    if (useS3) {
+      // S3 upload flow
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const ext = path.extname(file.originalname);
+      const filename = `${uniqueSuffix}${ext}`;
+      const key = `${category}/${filename}`;
+
+      try {
+        await s3Client.send(new PutObjectCommand({
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          ACL: category === 'kyc' ? 'private' : 'public-read',
+        }));
+
+        // KYC goes through proxy router redirect; public S3 objects go direct
+        let filePath = '';
+        if (category === 'kyc') {
+          filePath = `/api/v1/uploads/kyc/${filename}`;
+        } else {
+          filePath = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${key}`;
+        }
+
+        files.push({
+          id: `${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+          filename: filename,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          category,
+          path: filePath,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: req.user.id,
+        });
+      } catch (err) {
+        logger.error(`S3 Upload failed for ${file.originalname}: ${err.message}`);
+        return next(new ErrorResponse(`S3 Upload failed: ${err.message}`, 500));
+      }
+    } else {
+      // Local disk storage flow
+      files.push({
+        id: `${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+        filename: file.filename,
+        originalName: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        category,
+        path: `/uploads/${category}/${file.filename}`,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: req.user.id,
+      });
+    }
+  }
 
   res.status(201).json({
     success: true,
@@ -86,6 +170,45 @@ exports.uploadFiles = asyncHandler(async (req, res, next) => {
 // @access  Private
 exports.getFiles = asyncHandler(async (req, res, next) => {
   const { category } = req.params;
+  const useS3 = isS3Configured() && s3Client;
+
+  if (useS3) {
+    try {
+      const response = await s3Client.send(new ListObjectsV2Command({
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Prefix: `${category}/`
+      }));
+
+      const files = (response.Contents || [])
+        .filter(obj => obj.Key !== `${category}/`) // exclude folder itself
+        .map(obj => {
+          const filename = obj.Key.replace(`${category}/`, '');
+          let filePath = '';
+          if (category === 'kyc') {
+            filePath = `/api/v1/uploads/kyc/${filename}`;
+          } else {
+            filePath = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${obj.Key}`;
+          }
+          return {
+            filename,
+            size: obj.Size,
+            uploadedAt: obj.LastModified.toISOString(),
+            path: filePath,
+          };
+        });
+
+      return res.status(200).json({
+        success: true,
+        count: files.length,
+        data: files,
+      });
+    } catch (err) {
+      logger.error(`S3 List failed: ${err.message}`);
+      return next(new ErrorResponse(`S3 List failed: ${err.message}`, 500));
+    }
+  }
+
+  // Local filesystem fallback
   const uploadDir = path.join(__dirname, '..', 'uploads', category);
 
   try {
@@ -126,6 +249,26 @@ exports.getFiles = asyncHandler(async (req, res, next) => {
 // @access  Private
 exports.deleteFile = asyncHandler(async (req, res, next) => {
   const { category, filename } = req.params;
+  const useS3 = isS3Configured() && s3Client;
+
+  if (useS3) {
+    try {
+      await s3Client.send(new DeleteObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Key: `${category}/${filename}`
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: {},
+      });
+    } catch (err) {
+      logger.error(`S3 Delete failed for ${filename}: ${err.message}`);
+      return next(new ErrorResponse(`S3 Delete failed: ${err.message}`, 500));
+    }
+  }
+
+  // Local filesystem fallback
   const filePath = path.join(__dirname, '..', 'uploads', category, filename);
 
   try {
@@ -140,4 +283,39 @@ exports.deleteFile = asyncHandler(async (req, res, next) => {
     success: true,
     data: {},
   });
+});
+
+// @desc    Redirect to S3 presigned URL for secure KYC document
+// @route   GET /api/v1/uploads/kyc/:filename
+// @access  Private
+exports.getKycPresignedUrl = asyncHandler(async (req, res, next) => {
+  const { filename } = req.params;
+
+  if (!isS3Configured() || !s3Client) {
+    // If S3 is not configured, fallback to serving the file locally
+    const filePath = path.join(__dirname, '..', 'uploads', 'kyc', filename);
+    try {
+      await fs.access(filePath);
+      return res.sendFile(filePath);
+    } catch {
+      return next(new ErrorResponse('File not found', 404));
+    }
+  }
+
+  try {
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    const command = new GetObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: `kyc/${filename}`,
+    });
+
+    // Generate link valid for 15 minutes (900 seconds)
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+    
+    // Redirect user to the secure expiring link
+    res.redirect(signedUrl);
+  } catch (err) {
+    logger.error(`Presigned URL generation failed for ${filename}: ${err.message}`);
+    return next(new ErrorResponse(`Failed to generate secure link: ${err.message}`, 500));
+  }
 });
