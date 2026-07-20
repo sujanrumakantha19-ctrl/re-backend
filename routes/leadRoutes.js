@@ -27,9 +27,9 @@ router
   .route('/')
   .get(protect, advancedResults(Lead, [
     { path: 'assignedTo', select: 'name initials role' },
-    { path: 'projectId', select: 'name location' },
+    { path: 'projectId', select: 'name location surveyNumber' },
     { path: 'plotId', select: 'plotNumber status' },
-  ], ['customerName', 'phone']), getLeads)
+  ], ['customerName', 'phone', 'assignedToName']), getLeads)
   .post(protect, createLeadValidator, validate, createLead);
 
 router

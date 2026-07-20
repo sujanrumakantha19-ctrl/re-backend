@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const Plot = require('../models/Plot');
+const Lead = require('../models/Lead');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Notification = require('../models/Notification');
@@ -302,6 +303,63 @@ exports.getPlotsByStatus = asyncHandler(async (req, res, next) => {
       pages: Math.ceil(total / limit),
     },
     data: plots,
+  });
+});
+
+// @desc    Get plots booked by the current staff member (via assigned leads)
+// @route   GET /api/v1/plots/my-bookings
+// @access  Private (staff)
+exports.getMyBookings = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const skip = (page - 1) * limit;
+
+  // Find all leads assigned to this staff that have a plotId
+  const myLeads = await Lead.find({
+    assignedTo: req.user.id,
+    plotId: { $exists: true, $ne: null },
+  }).select('plotId customerName phone status');
+
+  const plotIds = myLeads.map(l => l.plotId);
+
+  // Build query
+  let query = { _id: { $in: plotIds } };
+
+  // Optional status filter
+  if (req.query.status) {
+    query.status = req.query.status;
+  }
+
+  // Optional projectId filter
+  if (req.query.projectId) {
+    query.projectId = req.query.projectId;
+  }
+
+  const total = await Plot.countDocuments(query);
+  const plots = await Plot.find(query)
+    .populate({ path: 'projectId', select: 'name location status' })
+    .skip(skip).limit(limit).sort('-createdAt');
+
+  // Enrich with lead info
+  const enrichedPlots = plots.map(plot => {
+    const lead = myLeads.find(l => l.plotId.toString() === plot._id.toString());
+    return {
+      ...plot.toJSON(),
+      leadInfo: lead ? { customerName: lead.customerName, phone: lead.phone, status: lead.status } : null,
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    count: enrichedPlots.length,
+    total,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+    data: enrichedPlots,
   });
 });
 

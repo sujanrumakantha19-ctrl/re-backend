@@ -14,6 +14,7 @@ const {
   approveBooking,
   rejectBooking,
   getPendingApprovals,
+  getMyBookings,
 } = require('../controllers/plotController');
 
 const { protect, authorize } = require('../middleware/auth');
@@ -21,6 +22,7 @@ const advancedResults = require('../middleware/advancedResults');
 const Plot = require('../models/Plot');
 
 // Specific routes BEFORE parameterized routes
+router.route('/my-bookings').get(protect, authorize('staff'), getMyBookings);
 router.route('/pending-approvals').get(protect, authorize('admin'), getPendingApprovals);
 router.route('/status/:status').get(protect, getPlotsByStatus);
 router.route('/project/:projectId').get(protect, getPlotsByProject);
@@ -31,7 +33,7 @@ router.route('/:id/reject').put(protect, authorize('admin'), rejectBooking);
 
 router
   .route('/')
-  .get(protect, advancedResults(Plot, { path: 'projectId', select: 'name location status' }), getPlots)
+  .get(protect, advancedResults(Plot, { path: 'projectId', select: 'name location status surveyNumber' }), getPlots)
   .post(protect, authorize('admin', 'staff'), createPlot);
 
 router
