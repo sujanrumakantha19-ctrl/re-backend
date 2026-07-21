@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const Lead = require('../models/Lead');
+const ActivityLog = require('../models/ActivityLog');
 
 // @desc    Get all leads
 // @route   GET /api/v1/leads
@@ -71,6 +72,26 @@ exports.createLead = asyncHandler(async (req, res, next) => {
 
   const lead = await Lead.create(allowedFields);
 
+  // Log activity
+  try {
+    await ActivityLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actorInitials: req.user.initials || '',
+      actorAvatarBg: req.user.avatarBg || '',
+      actionType: 'Created',
+      action: `Created lead for ${lead.customerName}`,
+      entityType: 'Lead',
+      entityId: lead._id,
+      entityName: lead.customerName,
+      timestamp: new Date().toISOString(),
+      ipAddress: req.ip || '',
+    });
+  } catch (logErr) {
+    console.error('Failed to create activity log:', logErr.message);
+  }
+
   res.status(201).json({
     success: true,
     data: lead,
@@ -115,10 +136,35 @@ exports.updateLead = asyncHandler(async (req, res, next) => {
 
   Object.keys(allowedFields).forEach(key => allowedFields[key] === undefined && delete allowedFields[key]);
 
+  const previousStatus = lead.status;
   lead = await Lead.findByIdAndUpdate(req.params.id, allowedFields, {
     returnDocument: 'after',
     runValidators: true,
   });
+
+  // Log activity — status changes are especially important
+  const actionType = (previousStatus !== lead.status) ? 'Status Change' : 'Updated';
+  const action = (previousStatus !== lead.status)
+    ? `Updated lead ${lead.customerName}: status ${previousStatus} → ${lead.status}`
+    : `Updated lead ${lead.customerName}`;
+  try {
+    await ActivityLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actorInitials: req.user.initials || '',
+      actorAvatarBg: req.user.avatarBg || '',
+      actionType,
+      action,
+      entityType: 'Lead',
+      entityId: lead._id,
+      entityName: lead.customerName,
+      timestamp: new Date().toISOString(),
+      ipAddress: req.ip || '',
+    });
+  } catch (logErr) {
+    console.error('Failed to create activity log:', logErr.message);
+  }
 
   res.status(200).json({
     success: true,
@@ -136,7 +182,27 @@ exports.deleteLead = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Lead not found with id of ${req.params.id}`, 404));
   }
 
+  const deletedName = lead.customerName;
   await lead.deleteOne();
+
+  try {
+    await ActivityLog.create({
+      actorId: req.user._id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actorInitials: req.user.initials || '',
+      actorAvatarBg: req.user.avatarBg || '',
+      actionType: 'Deleted',
+      action: `Deleted lead ${deletedName}`,
+      entityType: 'Lead',
+      entityId: req.params.id,
+      entityName: deletedName,
+      timestamp: new Date().toISOString(),
+      ipAddress: req.ip || '',
+    });
+  } catch (logErr) {
+    console.error('Failed to create activity log:', logErr.message);
+  }
 
   res.status(200).json({
     success: true,

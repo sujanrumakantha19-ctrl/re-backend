@@ -74,6 +74,7 @@ const PlotSchema = new mongoose.Schema(
       name: { type: String },
       phone: { type: String },
       paymentStatus: { type: String, enum: ['Not Paid', 'Partially Paid', 'Fully Paid'] },
+      paymentMethod: { type: String, enum: ['CASH', 'LOAN'] },
       type: { type: String, enum: ['customer', 'staff'] },
     },
     pendingApproval: {
@@ -95,6 +96,10 @@ const PlotSchema = new mongoose.Schema(
       paymentStatus: {
         type: String,
         enum: ['Not Paid', 'Partially Paid', 'Fully Paid'],
+      },
+      paymentMethod: {
+        type: String,
+        enum: ['CASH', 'LOAN'],
       },
       notes: {
         type: String,

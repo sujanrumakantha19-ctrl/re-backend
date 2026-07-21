@@ -154,9 +154,17 @@ describe('Plot Controller', () => {
 
   describe('PUT /api/v1/plots/:id/reject', () => {
     it('should reject a pending booking and restore to Available', async () => {
+      const Lead = require('../../models/Lead');
+      const lead = await Lead.create({
+        customerName: 'Rejected Customer',
+        phone: '1234567890',
+        email: 'rejected@test.com',
+        status: 'Customer',
+        plotId: new (require('mongoose').Types.ObjectId)(),
+      });
       const plot = await Plot.create({
         projectId, plotNumber: '30', status: 'Pending',
-        pendingApproval: { leadId: 'l', customerName: 'C', phone: '1', requestedBy: 'S', requestedAt: '2024-01-01' },
+        pendingApproval: { leadId: lead._id.toString(), customerName: 'C', phone: '1', requestedBy: 'S', requestedAt: '2024-01-01' },
       });
 
       const res = await request(app)
@@ -166,13 +174,18 @@ describe('Plot Controller', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('Available');
       expect(res.body.data.pendingApproval).toBeUndefined();
+
+      // Verify lead was reverted
+      const updatedLead = await Lead.findById(lead._id);
+      expect(updatedLead.status).toBe('Qualified');
+      expect(updatedLead.plotId).toBeNull();
     });
   });
 
   describe('GET /api/v1/plots/pending-approvals', () => {
     it('should return all pending plots for admin', async () => {
       await Plot.create([
-        { projectId, plotNumber: '40', status: 'Pending', pendingApproval: { leadId: 'l', customerName: 'C', phone: '1', requestedBy: 'S', requestedAt: '2024-01-01' } },
+        { projectId, plotNumber: '40', status: 'Pending', pendingApproval: { leadId: new (require('mongoose').Types.ObjectId)().toString(), customerName: 'C', phone: '1', requestedBy: 'S', requestedAt: '2024-01-01' } },
         { projectId, plotNumber: '41', status: 'Available' },
       ]);
 

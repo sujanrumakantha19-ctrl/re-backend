@@ -5,6 +5,29 @@ const Lead = require('../models/Lead');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Notification = require('../models/Notification');
+const ActivityLog = require('../models/ActivityLog');
+
+// ─── Helper: create activity log entry ─────────────────────────────────
+const logActivity = async ({ actor, actionType, action, entityType, entityId, entityName, ipAddress }) => {
+  try {
+    await ActivityLog.create({
+      actorId: actor._id,
+      actorName: actor.name,
+      actorRole: actor.role,
+      actorInitials: actor.initials || '',
+      actorAvatarBg: actor.avatarBg || '',
+      actionType,
+      action,
+      entityType,
+      entityId,
+      entityName,
+      timestamp: new Date().toISOString(),
+      ipAddress: ipAddress || '',
+    });
+  } catch (err) {
+    console.error('Failed to create activity log:', err.message);
+  }
+};
 
 // @desc    Get all plots
 // @route   GET /api/v1/plots
@@ -105,6 +128,9 @@ exports.updatePlot = asyncHandler(async (req, res, next) => {
 // @access  Private (staff + admin)
 exports.bookPlot = asyncHandler(async (req, res, next) => {
   const isStaffBooking = req.user.role === 'staff';
+  const paymentMethod = req.body.paymentMethod || 'CASH';
+  const paymentStatus = req.body.paymentStatus || 'Not Paid';
+
   const update = isStaffBooking
     ? {
         status: 'Pending',
@@ -114,7 +140,8 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
           phone: req.body.phone,
           requestedBy: req.user.name,
           requestedAt: new Date().toISOString().split('T')[0],
-          paymentStatus: req.body.paymentStatus || 'Not Paid',
+          paymentStatus,
+          paymentMethod,
           notes: req.body.notes || '',
         },
         expectedRegistrationDate: req.body.expectedRegistrationDate || '',
@@ -124,7 +151,8 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
         bookedBy: {
           name: req.body.customerName,
           phone: req.body.phone,
-          paymentStatus: req.body.paymentStatus || 'Not Paid',
+          paymentStatus,
+          paymentMethod,
           type: 'customer',
         },
         expectedRegistrationDate: req.body.expectedRegistrationDate || '',
@@ -138,6 +166,39 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
 
   if (!plot) {
     return next(new ErrorResponse('Plot not found or already booked', 400));
+  }
+
+  // ─── Update the Lead with booking info ──────────────────────────────────
+  if (req.body.leadId) {
+    try {
+      const leadUpdate = {
+        status: 'Customer',
+        plotId: plot._id,
+        paymentStatus,
+        paymentMethod,
+      };
+      if (req.body.bank) leadUpdate.bank = req.body.bank;
+      if (req.body.bankFollowerName) leadUpdate.bankFollowerName = req.body.bankFollowerName;
+      if (req.body.bankFollowerPhone) leadUpdate.bankFollowerPhone = req.body.bankFollowerPhone;
+
+      const lead = await Lead.findByIdAndUpdate(req.body.leadId, leadUpdate, { returnDocument: 'after' });
+
+      if (lead) {
+        await logActivity({
+          actor: req.user,
+          actionType: 'Status Change',
+          action: isStaffBooking
+            ? `Requested booking of Plot #${plot.plotNumber} for lead ${lead.customerName} (${paymentMethod})`
+            : `Booked Plot #${plot.plotNumber} for lead ${lead.customerName} (${paymentMethod})`,
+          entityType: 'Plot',
+          entityId: plot._id,
+          entityName: `Plot #${plot.plotNumber}`,
+          ipAddress: req.ip,
+        });
+      }
+    } catch (leadErr) {
+      console.error('Failed to update lead on booking:', leadErr.message);
+    }
   }
 
   // Create notification for all admins if this was requested by staff
@@ -180,15 +241,46 @@ exports.approveBooking = asyncHandler(async (req, res, next) => {
   }
 
   const approval = plot.pendingApproval;
+  const paymentMethod = approval.paymentMethod || 'CASH';
   plot.status = 'Booked';
   plot.bookedBy = {
     name: approval.customerName,
     phone: approval.phone,
     paymentStatus: approval.paymentStatus || 'Not Paid',
+    paymentMethod,
     type: 'customer',
   };
   plot.pendingApproval = undefined;
   await plot.save();
+
+  // ─── Update the associated Lead ─────────────────────────────────────────
+  if (approval.leadId) {
+    try {
+      const lead = await Lead.findByIdAndUpdate(
+        approval.leadId,
+        {
+          status: 'Customer',
+          plotId: plot._id,
+          paymentStatus: approval.paymentStatus || 'Not Paid',
+          paymentMethod,
+        },
+        { returnDocument: 'after' }
+      );
+      if (lead) {
+        await logActivity({
+          actor: req.user,
+          actionType: 'Status Change',
+          action: `Approved booking of Plot #${plot.plotNumber} for ${lead.customerName} (${paymentMethod})`,
+          entityType: 'Plot',
+          entityId: plot._id,
+          entityName: `Plot #${plot.plotNumber}`,
+          ipAddress: req.ip,
+        });
+      }
+    } catch (leadErr) {
+      console.error('Failed to update lead on approval:', leadErr.message);
+    }
+  }
 
   res.status(200).json({ success: true, data: plot });
 });
@@ -203,9 +295,89 @@ exports.rejectBooking = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('No pending approval for this plot', 400));
   }
 
+  const leadId = plot.pendingApproval?.leadId;
   plot.status = 'Available';
   plot.pendingApproval = undefined;
   await plot.save();
+
+  // ─── Revert Lead status if it was set to Customer by the booking ────────
+  if (leadId) {
+    try {
+      const lead = await Lead.findByIdAndUpdate(
+        leadId,
+        { status: 'Qualified', plotId: null },
+        { returnDocument: 'after' }
+      );
+      if (lead) {
+        await logActivity({
+          actor: req.user,
+          actionType: 'Status Change',
+          action: `Rejected booking of Plot #${plot.plotNumber} for ${lead.customerName}`,
+          entityType: 'Plot',
+          entityId: plot._id,
+          entityName: `Plot #${plot.plotNumber}`,
+          ipAddress: req.ip,
+        });
+      }
+    } catch (leadErr) {
+      console.error('Failed to revert lead on rejection:', leadErr.message);
+    }
+  }
+
+  res.status(200).json({ success: true, data: plot });
+});
+
+// @desc    Register a plot (mark as Registered)
+// @route   PUT /api/v1/plots/:id/register
+// @access  Private (admin)
+exports.registerPlot = asyncHandler(async (req, res, next) => {
+  let plot = await Plot.findById(req.params.id);
+
+  if (!plot) return next(new ErrorResponse('Plot not found', 404));
+  if (plot.status !== 'Booked') {
+    return next(new ErrorResponse('Only booked plots can be registered', 400));
+  }
+
+  const registrationDate = req.body.registrationDate || new Date().toISOString().split('T')[0];
+  plot.status = 'Registered';
+  plot.registrationDate = registrationDate;
+  if (req.body.paymentStatus) {
+    plot.bookedBy = { ...(plot.bookedBy || {}), paymentStatus: req.body.paymentStatus };
+  }
+  await plot.save();
+
+  // ─── Update the associated Lead ─────────────────────────────────────────
+  try {
+    const lead = await Lead.findOne({ plotId: plot._id });
+    if (lead) {
+      const leadUpdate = { paymentStatus: req.body.paymentStatus || 'Fully Paid' };
+      if (req.body.registrationDate) {
+        leadUpdate.followUps = [
+          ...(lead.followUps || []),
+          {
+            id: `reg-${Date.now()}`,
+            date: registrationDate,
+            notes: `Plot #${plot.plotNumber} registered`,
+            outcome: 'Registered',
+            nextAction: '',
+          },
+        ];
+      }
+      await Lead.findByIdAndUpdate(lead._id, leadUpdate);
+
+      await logActivity({
+        actor: req.user,
+        actionType: 'Status Change',
+        action: `Registered Plot #${plot.plotNumber} for ${lead.customerName}`,
+        entityType: 'Plot',
+        entityId: plot._id,
+        entityName: `Plot #${plot.plotNumber}`,
+        ipAddress: req.ip,
+      });
+    }
+  } catch (leadErr) {
+    console.error('Failed to update lead on registration:', leadErr.message);
+  }
 
   res.status(200).json({ success: true, data: plot });
 });

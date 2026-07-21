@@ -15,6 +15,7 @@ const {
   rejectBooking,
   getPendingApprovals,
   getMyBookings,
+  registerPlot,
 } = require('../controllers/plotController');
 
 const { protect, authorize } = require('../middleware/auth');
@@ -30,6 +31,7 @@ router.route('/:id/pending-approval').get(protect, getPlotPendingApproval);
 router.route('/:id/book').put(protect, bookPlot);
 router.route('/:id/approve').put(protect, authorize('admin'), approveBooking);
 router.route('/:id/reject').put(protect, authorize('admin'), rejectBooking);
+router.route('/:id/register').put(protect, authorize('admin'), registerPlot);
 
 router
   .route('/')
