@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const Task = require('../models/Task');
+const { sendPushToUser } = require('../utils/fcm');
 
 // @desc    Get all tasks (with backend project, date, assignee & search filtering)
 // @route   GET /api/v1/tasks
@@ -121,6 +122,34 @@ exports.getTask = asyncHandler(async (req, res, next) => {
 exports.createTask = asyncHandler(async (req, res, next) => {
   const task = await Task.create(req.body);
 
+  // Notify assigned staff member via FCM push
+  if (req.body.assignee) {
+    try {
+      const Notification = require('../models/Notification');
+      const User = require('../models/User');
+      const assigneeUser = await User.findById(req.body.assignee);
+      if (assigneeUser && assigneeUser.role === 'staff') {
+        const notif = await Notification.create({
+          type: 'task_assigned',
+          userId: assigneeUser._id,
+          entityId: task._id.toString(),
+          entityType: 'Task',
+          message: `You have been assigned a new task: "${task.title}"`,
+          actorName: req.user?.name || 'Admin',
+          isToday: true,
+          isRead: false,
+        });
+        sendPushToUser(assigneeUser._id, {
+          title: '📋 New Task Assigned',
+          body: `"${task.title}" has been assigned to you`,
+          data: { notificationId: notif._id.toString(), type: 'task_assigned', entityType: 'Task', entityId: task._id.toString() },
+        }).catch(e => console.error('FCM push error (task assign):', e.message));
+      }
+    } catch (notifErr) {
+      console.error('Failed to notify staff on task creation:', notifErr.message);
+    }
+  }
+
   res.status(201).json({
     success: true,
     data: task,
@@ -171,7 +200,7 @@ exports.updateTask = asyncHandler(async (req, res, next) => {
       // Notify all admins
       const admins = await User.find({ role: 'admin' });
       for (const admin of admins) {
-        await Notification.create({
+        const notif = await Notification.create({
           type: 'task_assigned',
           userId: admin._id,
           entityId: task._id.toString(),
@@ -181,13 +210,18 @@ exports.updateTask = asyncHandler(async (req, res, next) => {
           isToday: true,
           isRead: false,
         });
+        sendPushToUser(admin._id, {
+          title: '💬 Task Comment',
+          body: `${req.user.name} commented on "${task.title}"`,
+          data: { notificationId: notif._id.toString(), type: 'task_assigned', entityType: 'Task', entityId: task._id.toString() },
+        }).catch(e => console.error('FCM push error (comment->admin):', e.message));
       }
     } else if (req.user.role === 'admin') {
       // Notify the task's assignee if it's a staff member
       if (task.assignee) {
         const assigneeUser = await User.findById(task.assignee);
         if (assigneeUser && assigneeUser.role === 'staff') {
-          await Notification.create({
+          const notif = await Notification.create({
             type: 'task_assigned',
             userId: assigneeUser._id,
             entityId: task._id.toString(),
@@ -197,6 +231,11 @@ exports.updateTask = asyncHandler(async (req, res, next) => {
             isToday: true,
             isRead: false,
           });
+          sendPushToUser(assigneeUser._id, {
+            title: '💬 Task Comment',
+            body: `Admin commented on "${task.title}"`,
+            data: { notificationId: notif._id.toString(), type: 'task_assigned', entityType: 'Task', entityId: task._id.toString() },
+          }).catch(e => console.error('FCM push error (comment->staff):', e.message));
         }
       }
     }

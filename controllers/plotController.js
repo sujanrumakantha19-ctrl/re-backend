@@ -419,6 +419,30 @@ exports.approveBooking = asyncHandler(async (req, res, next) => {
     console.error('Failed to update lead on approval:', leadErr.message);
   }
 
+  // Notify the staff member who made the booking request
+  try {
+    const requestedByUserId = plot.pendingApproval?.requestedBy || approval?.requestedBy;
+    if (requestedByUserId) {
+      const staffNotif = await Notification.create({
+        type: 'booking',
+        userId: requestedByUserId,
+        entityId: `${plot.projectId}:${plot._id}`,
+        entityType: 'Project',
+        message: `✅ Your booking request for Plot #${plot.plotNumber} has been APPROVED by Admin`,
+        actorName: req.user.name,
+        isToday: true,
+        isRead: false,
+      });
+      sendPushToUser(requestedByUserId, {
+        title: '✅ Booking Approved!',
+        body: `Plot #${plot.plotNumber} booking has been approved`,
+        data: { notificationId: staffNotif._id.toString(), type: 'booking', entityType: 'Project', entityId: `${plot.projectId}:${plot._id}` },
+      }).catch(e => console.error('FCM push error (approve->staff):', e.message));
+    }
+  } catch (notifErr) {
+    console.error('Failed to notify staff on approval:', notifErr.message);
+  }
+
   res.status(200).json({ success: true, data: plot });
 });
 
@@ -511,10 +535,32 @@ exports.rejectBooking = asyncHandler(async (req, res, next) => {
     console.error('Failed to revert lead on rejection:', leadErr.message);
   }
 
+  // Notify the staff member who made the booking request
+  try {
+    const requestedByUserId = plot.pendingApproval?.requestedBy;
+    if (requestedByUserId) {
+      const staffNotif = await Notification.create({
+        type: 'booking',
+        userId: requestedByUserId,
+        entityId: `${plot.projectId}:${plot._id}`,
+        entityType: 'Project',
+        message: `❌ Your booking request for Plot #${plot.plotNumber} has been REJECTED by Admin`,
+        actorName: req.user.name,
+        isToday: true,
+        isRead: false,
+      });
+      sendPushToUser(requestedByUserId, {
+        title: '❌ Booking Rejected',
+        body: `Plot #${plot.plotNumber} booking request was rejected`,
+        data: { notificationId: staffNotif._id.toString(), type: 'booking', entityType: 'Project', entityId: `${plot.projectId}:${plot._id}` },
+      }).catch(e => console.error('FCM push error (reject->staff):', e.message));
+    }
+  } catch (notifErr) {
+    console.error('Failed to notify staff on rejection:', notifErr.message);
+  }
+
   res.status(200).json({ success: true, data: plot });
 });
-
-// @desc    Register a plot (mark as Registered)
 // @route   PUT /api/v1/plots/:id/register
 // @access  Private (admin)
 exports.registerPlot = asyncHandler(async (req, res, next) => {
