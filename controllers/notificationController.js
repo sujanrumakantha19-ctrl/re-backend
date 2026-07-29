@@ -3,6 +3,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const Lead = require('../models/Lead');
+const { sendPushToUser } = require('../utils/fcm');
 
 // Helper to check and create birthday notifications for a specific admin
 const checkAndCreateBirthdayNotifications = async (adminId) => {
@@ -160,6 +161,23 @@ exports.createNotification = asyncHandler(async (req, res, next) => {
   req.body.userId = req.user.id;
 
   const notification = await Notification.create(req.body);
+
+  // Send FCM push notification to the target user's registered devices
+  try {
+    await sendPushToUser(req.body.userId, {
+      title: 'New Notification',
+      body: req.body.message || 'You have a new notification',
+      data: {
+        notificationId: notification._id.toString(),
+        type: req.body.type || 'general',
+        entityType: req.body.entityType || '',
+        entityId: req.body.entityId || '',
+      },
+    });
+  } catch (fcmErr) {
+    // FCM failure should not break the API response
+    console.error('FCM push error in createNotification:', fcmErr.message);
+  }
 
   res.status(201).json({
     success: true,

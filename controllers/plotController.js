@@ -6,6 +6,7 @@ const User = require('../models/User');
 const Project = require('../models/Project');
 const Notification = require('../models/Notification');
 const ActivityLog = require('../models/ActivityLog');
+const { sendPushToUser } = require('../utils/fcm');
 
 // ─── Helper: create activity log entry ─────────────────────────────────
 const logActivity = async ({ actor, actionType, action, entityType, entityId, entityName, ipAddress }) => {
@@ -275,7 +276,7 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
       const projectName = project ? project.name : 'Project';
       const admins = await User.find({ role: 'admin' });
       for (const admin of admins) {
-        await Notification.create({
+        const notif = await Notification.create({
           type: 'booking',
           userId: admin._id,
           entityId: `${plot.projectId}:${plot._id}`,
@@ -285,6 +286,12 @@ exports.bookPlot = asyncHandler(async (req, res, next) => {
           isToday: true,
           isRead: false
         });
+        // Send FCM push to admin's phone
+        sendPushToUser(admin._id, {
+          title: '📋 New Booking Request',
+          body: `Plot #${plot.plotNumber} in ${projectName} by ${req.user.name}`,
+          data: { notificationId: notif._id.toString(), type: 'booking', entityType: 'Project', entityId: `${plot.projectId}:${plot._id}` },
+        }).catch(e => console.error('FCM push error (booking):', e.message));
       }
     } catch (notifErr) {
       console.error('Failed to create booking notification:', notifErr);
@@ -608,7 +615,7 @@ exports.cancelBooking = asyncHandler(async (req, res, next) => {
       const projectName = project ? project.name : 'Project';
       const admins = await User.find({ role: 'admin' });
       for (const admin of admins) {
-        await Notification.create({
+        const notif = await Notification.create({
           type: 'booking',
           userId: admin._id,
           entityId: `${plot.projectId}:${plot._id}`,
@@ -618,6 +625,12 @@ exports.cancelBooking = asyncHandler(async (req, res, next) => {
           isToday: true,
           isRead: false
         });
+        // Send FCM push to admin's phone
+        sendPushToUser(admin._id, {
+          title: '❌ Cancellation Request',
+          body: `Plot #${plot.plotNumber} in ${projectName} by ${req.user.name}`,
+          data: { notificationId: notif._id.toString(), type: 'booking', entityType: 'Project', entityId: `${plot.projectId}:${plot._id}` },
+        }).catch(e => console.error('FCM push error (cancellation):', e.message));
       }
     } catch (notifErr) {
       console.error('Failed to create cancellation notification:', notifErr);
