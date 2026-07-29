@@ -26,7 +26,12 @@ connectDB();
 
 const app = express();
 
+// Trust the first proxy (required for Render / cloud deployments)
+// This fixes express-rate-limit ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // ─── Security & Performance ───────────────────────────────────────────
+
 
 // Set security headers (allow cross-origin resource sharing for uploaded images)
 app.use(
